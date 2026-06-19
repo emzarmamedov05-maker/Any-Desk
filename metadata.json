@@ -1,6 +1,11 @@
 {
-  "name": "Mens Space",
-  "description": "A professional management tool for barbershops to track individual barber earnings, commissions, tips, and shop expenses with local persistence.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "name": "Uzak Masaüstü ve Dosya Transferi",
+  "description": "AnyDesk benzeri, gerçek zamanlı uzak masaüstü kontrolü, anlık mesajlaşma ve eşler arası (P2P) dosya transferi uygulaması.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
