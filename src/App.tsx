@@ -50,6 +50,9 @@ export default function App() {
   // Client references
   const wsRef = useRef<WebSocket | null>(null);
   const heartbeatIntervalRef = useRef<any>(null);
+  const clientNameRef = useRef<string>('');
+  const reconnectTimeoutRef = useRef<any>(null);
+
 
   // Automatic PC names naming algorithm
   useEffect(() => {
@@ -218,12 +221,20 @@ export default function App() {
     ws.onclose = () => {
       console.log("WebSocket disconnected.");
       clearInterval(heartbeatIntervalRef.current);
+      // Otomatik yeniden bağlan (3 saniye sonra)
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (clientNameRef.current) {
+          console.log("Reconnecting...");
+          initWebSocketConnection(clientNameRef.current);
+        }
+      }, 3000);
     };
   };
 
   const handleSaveNameAndConnect = () => {
     if (!myName.trim()) return;
     localStorage.setItem('anydesk_client_name', myName.trim());
+    clientNameRef.current = myName.trim();
     setIsNameSet(true);
     initWebSocketConnection(myName.trim());
   };
