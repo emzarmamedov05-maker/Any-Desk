@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, MouseEvent } from 'react';
-import { Monitor, Play, Maximize2, Minimize2, X, FolderOpen, FileText, Download, RefreshCw } from 'lucide-react';
+import { Monitor, Maximize2, Minimize2, X, FolderOpen, FileText, Download } from 'lucide-react';
 import { DesktopState, VirtualWindow, Vector2D, CanvasLine, SharedFile } from '../types';
 import { playClick } from './AudioEffects';
 
@@ -26,11 +26,6 @@ export default function VirtualDesktop({
   const [draggingWindowId, setDraggingWindowId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Vector2D>({ x: 0, y: 0 });
   const [maxZIndex, setMaxZIndex] = useState(10);
-  const [showRealScreenMock, setShowRealScreenMock] = useState(false);
-  const [realScreenStream, setRealScreenStream] = useState<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [screenShareError, setScreenShareError] = useState<string | null>(null);
-  const [clicks, setClicks] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
   const [desktopTime, setDesktopTime] = useState('');
 
   useEffect(() => {
@@ -40,25 +35,7 @@ export default function VirtualDesktop({
     return () => clearInterval(interval);
   }, []);
 
-  const toggleRealScreenSharing = async () => {
-    if (showRealScreenMock) {
-      realScreenStream?.getTracks().forEach(t => t.stop());
-      setRealScreenStream(null);
-      setShowRealScreenMock(false);
-      setScreenShareError(null);
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor' }, audio: false });
-        setRealScreenStream(stream);
-        if (videoRef.current) videoRef.current.srcObject = stream;
-        setShowRealScreenMock(true);
-        setScreenShareError(null);
-      } catch (err: any) {
-        setScreenShareError('Tarayıcı güvenlik politikaları nedeniyle gerçek ekran paylaşımı engellendi.');
-        setShowRealScreenMock(true);
-      }
-    }
-  };
+  const [clicks, setClicks] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -171,17 +148,7 @@ export default function VirtualDesktop({
             </span>
           )}
         </div>
-        <button
-          onClick={toggleRealScreenSharing}
-          className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-md border font-medium transition-all ${
-            showRealScreenMock
-              ? 'bg-red-600 border-red-500 text-white'
-              : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white'
-          }`}
-        >
-          <Play className={`w-3 h-3 ${showRealScreenMock ? 'animate-pulse' : ''}`} />
-          {showRealScreenMock ? 'Ekran Paylaşımını Kapat' : 'Gerçek Ekran Paylaş (WebRTC)'}
-        </button>
+
       </div>
 
       {/* Ekran alanı */}
@@ -190,26 +157,10 @@ export default function VirtualDesktop({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onClick={handleDeskClick}
-        className={`flex-1 relative w-full rounded-xl overflow-hidden mt-2 select-none ${
-          showRealScreenMock ? 'bg-black' : 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-900 to-slate-950'
-        } ${role === 'controller' && !hasControlPermission ? 'cursor-not-allowed' : 'cursor-default'}`}
-        style={{ backgroundImage: showRealScreenMock ? 'none' : 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '24px 24px' }}
+        className={`flex-1 relative w-full rounded-xl overflow-hidden mt-2 select-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-900 to-slate-950 ${role === 'controller' && !hasControlPermission ? 'cursor-not-allowed' : 'cursor-default'}`}
+        style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '24px 24px' }}
       >
-        {/* Gerçek ekran paylaşımı */}
-        {showRealScreenMock && (
-          <div className="absolute inset-0 z-[1] flex flex-col">
-            <div className="flex-1 bg-black flex items-center justify-center">
-              {screenShareError ? (
-                <div className="max-w-md p-5 bg-red-950/40 border border-red-900/60 text-slate-200 text-xs rounded-xl text-center">
-                  <p className="font-bold text-red-400 text-sm mb-1">WebRTC Engeli</p>
-                  <p>{screenShareError}</p>
-                </div>
-              ) : (
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
-              )}
-            </div>
-          </div>
-        )}
+
 
         {/* Tıklama efekti */}
         {clicks.map(click => (
@@ -221,8 +172,7 @@ export default function VirtualDesktop({
         ))}
 
         {/* Masaüstü ikonları */}
-        {!showRealScreenMock && (
-          <div className="absolute top-5 left-5 grid grid-cols-1 gap-6 z-10">
+        <div className="absolute top-5 left-5 grid grid-cols-1 gap-6 z-10">
             {appIcons.map(app => (
               <div
                 key={app.id}
@@ -237,10 +187,9 @@ export default function VirtualDesktop({
               </div>
             ))}
           </div>
-        )}
 
         {/* Pencereler */}
-        {!showRealScreenMock && desktopState.windows.map(win => {
+        {desktopState.windows.map(win => {
           if (!win.isOpen || win.isMinimized || win.id !== 'files') return null;
           return (
             <div
@@ -307,8 +256,7 @@ export default function VirtualDesktop({
       </div>
 
       {/* Görev çubuğu */}
-      {!showRealScreenMock && (
-        <div className="h-10 bg-slate-950/90 rounded-xl mt-2 px-3 flex items-center justify-between border border-slate-900/60 z-30 select-none">
+      <div className="h-10 bg-slate-950/90 rounded-xl mt-2 px-3 flex items-center justify-between border border-slate-900/60 z-30 select-none">
           <div className="flex items-center gap-1.5">
             <div className="w-5 h-5 rounded-full bg-red-600 cursor-pointer hover:scale-105 transition-transform" />
             <div className="h-5 w-[1px] bg-slate-800 mx-1" />
@@ -325,7 +273,6 @@ export default function VirtualDesktop({
           </div>
           <span className="text-[10px] font-mono text-slate-300 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800/80">{desktopTime}</span>
         </div>
-      )}
     </div>
   );
 }
