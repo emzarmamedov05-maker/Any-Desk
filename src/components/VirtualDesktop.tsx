@@ -303,19 +303,7 @@ export default function VirtualDesktop({
           );
         })}
 
-        {/* Cursor göstergesi */}
-        {['controller', 'host'].map(r => r === role && (
-          <div key={r} className="absolute pointer-events-none transition-all duration-75 z-40 ease-out" style={{ left: `${desktopState.cursorPosition.x}%`, top: `${desktopState.cursorPosition.y}%` }}>
-            <div className="relative">
-              <svg className={`w-5 h-5 drop-shadow-md ${r === 'controller' ? 'text-red-500' : 'text-sky-500'}`} viewBox="0 0 24 24" fill="currentColor">
-                <path d="M0 0l24 9-11 3-3 11-10-23z" stroke="white" strokeWidth="1.5" />
-              </svg>
-              <span className={`absolute left-4 top-4 text-[9px] text-white font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap border border-white/50 ${r === 'controller' ? 'bg-red-600' : 'bg-sky-600'}`}>
-                {r === 'controller' ? 'Uzak Cihaz' : 'Kontrolcü'}
-              </span>
-            </div>
-          </div>
-        ))}
+
       </div>
 
       {/* Görev çubuğu */}
