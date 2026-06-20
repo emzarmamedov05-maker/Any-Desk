@@ -690,10 +690,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Footer legalities */}
-      <footer className="py-4 px-6 border-t border-neutral-900/80 text-center text-[10px] text-neutral-500 relative z-10 bg-neutral-950/20 font-mono tracking-wide">
-        &copy; 2026 Uzak Masaüstü ve Dosya Transferi Simülatörü. Tüm Hakları Saklıdır. Güvenli TLS WebSockets ile korunmaktadır.
-      </footer>
+
     </div>
   );
 }
