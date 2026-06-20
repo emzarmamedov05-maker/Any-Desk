@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, MouseEvent } from 'react';
-import { Monitor, Maximize2, Minimize2, X, FolderOpen, FileText, Download } from 'lucide-react';
+import { Maximize2, Minimize2, X, FolderOpen, FileText, Download } from 'lucide-react';
 import { DesktopState, VirtualWindow, Vector2D, CanvasLine, SharedFile } from '../types';
 import { playClick } from './AudioEffects';
 
@@ -133,24 +133,6 @@ export default function VirtualDesktop({
   return (
     <div className="flex flex-col h-full bg-slate-950 rounded-2xl border border-slate-800 p-2 overflow-hidden relative">
       
-      {/* Üst durum çubuğu */}
-      <div className="flex items-center justify-between pb-2 px-3 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          {role === 'controller' ? (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold bg-amber-950/20 px-2.5 py-1 rounded-full border border-amber-900/50">
-              <Monitor className="w-3.5 h-3.5 animate-pulse" />
-              Uzaktan İzleniyor
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold bg-emerald-950/20 px-2.5 py-1 rounded-full border border-emerald-900/50">
-              <Monitor className="w-3.5 h-3.5" />
-              Masaüstünü Paylaşıyorsunuz
-            </span>
-          )}
-        </div>
-
-      </div>
-
       {/* Ekran alanı */}
       <div
         ref={containerRef}
