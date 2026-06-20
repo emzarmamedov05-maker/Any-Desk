@@ -180,55 +180,41 @@ export default function FileTransfer({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => peerId && fileInputRef.current?.click()}
-        className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl cursor-default transition-all duration-300 ${
+        className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all duration-300 ${
           !peerId
-            ? 'opacity-40 border-neutral-800 bg-neutral-950/20 cursor-not-allowed'
+            ? 'opacity-40 border-neutral-800 bg-neutral-950/20'
             : isDragging
             ? 'border-red-500 bg-red-950/10 scale-[0.99] shadow-inner'
-            : 'border-neutral-800 hover:border-neutral-500 bg-neutral-950/40 cursor-pointer'
+            : 'border-neutral-800 bg-neutral-950/40'
         }`}
       >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          disabled={!peerId}
-          className="hidden"
-        />
-        <input
-          type="file"
-          ref={folderInputRef}
-          onChange={handleFolderChange}
-          disabled={!peerId}
-          className="hidden"
-          {...{ webkitdirectory: '', mozdirectory: '' } as any}
-          multiple
-        />
-        
-        <Upload className={`w-9 h-9 mb-2 transition-transform duration-300 ${isDragging ? 'translate-y-[-4px] text-red-500 animate-bounce' : 'text-neutral-450'}`} />
-        
-        {peerId ? (
-          <div className="text-center font-sans">
-            <p className="text-xs font-medium text-neutral-200">
-              Göndermek istediğiniz dosyayı buraya sürükleyin
-            </p>
-            <p className="text-[10px] text-neutral-450 mt-1">
-              ya da doğrudan <span onClick={() => fileInputRef.current?.click()} className="text-red-500 font-medium underline underline-offset-2 cursor-pointer">dosya seç</span>
-              {' '}veya{' '}
-              <span onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }} className="text-amber-500 font-medium underline underline-offset-2 cursor-pointer">klasör seç</span>
-            </p>
-          </div>
-        ) : (
-          <div className="text-center">
-            <p className="text-xs font-semibold text-red-400/90 font-mono tracking-wide uppercase">
-              Dosya Transferi İçin Bağlantı Gerekli
-            </p>
-            <p className="text-[10px] text-neutral-450 mt-1 leading-relaxed">
-              Öncelikle bağlantı kodu girerek uzak bilgisayarla oturum başlatın.
-            </p>
-          </div>
-        )}
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} disabled={!peerId} className="hidden" />
+        <input type="file" ref={folderInputRef} onChange={handleFolderChange} disabled={!peerId} className="hidden" {...{ webkitdirectory: '', mozdirectory: '' } as any} multiple />
+
+        <Upload className={`w-7 h-7 mb-2 transition-transform duration-300 ${isDragging ? 'translate-y-[-4px] text-red-500 animate-bounce' : 'text-neutral-500'}`} />
+        <p className="text-[10px] text-neutral-500 mb-3">
+          {peerId ? 'Dosya veya klasörü buraya sürükleyin ya da seçin' : 'Dosya transferi için önce bağlantı kurun'}
+        </p>
+
+        {/* İki ayrı buton */}
+        <div className="flex gap-2 w-full">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!peerId}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-neutral-800 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 hover:border-red-500 transition-all cursor-pointer"
+          >
+            <File className="w-4 h-4" />
+            Dosya Seç
+          </button>
+          <button
+            onClick={() => folderInputRef.current?.click()}
+            disabled={!peerId}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-neutral-800 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-200 hover:text-white text-xs font-semibold rounded-xl border border-neutral-700 hover:border-amber-500 transition-all cursor-pointer"
+          >
+            <Folder className="w-4 h-4" />
+            Klasör Seç
+          </button>
+        </div>
       </div>
 
       {/* Progress Bar */}
