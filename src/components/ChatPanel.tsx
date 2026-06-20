@@ -127,7 +127,7 @@ export default function ChatPanel({
           onKeyDown={handleKeyPress}
           disabled={!peerId}
           placeholder={peerId ? "Buraya mesajınızı yazın..." : "Sohbet için bağlantı kurun"}
-          className="flex-1 bg-neutral-950/60 border border-neutral-800 text-neutral-200 placeholder-neutral-500 text-xs px-3.5 py-4 rounded-xl focus:outline-none focus:border-red-500/50 hover:border-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-neutral-950/60 border border-neutral-800 text-neutral-200 placeholder-neutral-500 text-xs px-3.5 py-6 rounded-xl focus:outline-none focus:border-red-500/50 hover:border-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSend}
