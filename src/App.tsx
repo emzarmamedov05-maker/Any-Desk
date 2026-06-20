@@ -33,12 +33,9 @@ export default function App() {
   const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([]);
   const [desktopState, setDesktopState] = useState<DesktopState>({
     windows: [
-      { id: 'notepad', title: 'Not Defteri', isOpen: true, isMinimized: false, isMaximized: false, position: { x: 400, y: 30 }, size: { width: 340, height: 210 }, zIndex: 1, icon: 'FileText' },
-      { id: 'paint', title: 'Çizim Alanı', isOpen: false, isMinimized: false, isMaximized: false, position: { x: 120, y: 40 }, size: { width: 440, height: 280 }, zIndex: 2, icon: 'Palette' },
-      { id: 'terminal', title: 'Sistem Uçbirimi', isOpen: false, isMinimized: false, isMaximized: false, position: { x: 220, y: 150 }, size: { width: 420, height: 260 }, zIndex: 3, icon: 'TerminalIcon' },
-      { id: 'files', title: 'Paylaşılan Klasör', isOpen: false, isMinimized: false, isMaximized: false, position: { x: 190, y: 90 }, size: { width: 380, height: 220 }, zIndex: 4, icon: 'FolderOpen' }
+      { id: 'files', title: 'Paylaşılan Klasör', isOpen: false, isMinimized: false, isMaximized: false, position: { x: 190, y: 90 }, size: { width: 380, height: 220 }, zIndex: 1, icon: 'FolderOpen' }
     ],
-    activeWindowId: 'notepad',
+    activeWindowId: null,
     cursorPosition: { x: 50, y: 50 },
     isDrawingActive: false,
     notesContent: '',
