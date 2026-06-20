@@ -143,9 +143,19 @@ wss.on("connection", (ws: WebSocket) => {
           // A controller is requesting connection to a host
           if (!clientCabinet) return;
           const { targetId } = data;
+          // normalize: remove spaces for lookup
+          const normalizedTarget = targetId.replace(/\s/g, '');
+          let hostClient = clients.get(targetId);
+          if (!hostClient) {
+            // try matching without spaces
+            for (const [key, val] of clients.entries()) {
+              if (key.replace(/\s/g, '') === normalizedTarget) {
+                hostClient = val;
+                break;
+              }
+            }
+          }
           console.log(`Connection request: ${clientCabinet.id} -> ${targetId}`);
-
-          const hostClient = clients.get(targetId);
           if (!hostClient) {
             ws.send(JSON.stringify({
               type: "session:error",

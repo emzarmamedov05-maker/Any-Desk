@@ -3,16 +3,14 @@ productName: Uzak Masaüstü Bağlantısı
 copyright: Copyright © 2026
 
 extraMetadata:
-  main: electron/main.js
+  main: electron/main.cjs
   type: commonjs
 
 directories:
   output: release
 
 files:
-  - dist/**/*
   - electron/**/*
-  - node_modules/**/*
   - package.json
 
 win:
