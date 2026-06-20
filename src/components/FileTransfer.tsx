@@ -1,6 +1,7 @@
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
-import { Upload, File, FileText, Image, Archive, Download, Server, RefreshCw } from 'lucide-react';
+import { Upload, File, FileText, Image, Archive, Download, Server, RefreshCw, Folder } from 'lucide-react';
 import { SharedFile } from '../types';
+import JSZip from 'jszip';
 
 interface FileTransferProps {
   sharedFiles: SharedFile[];
@@ -23,6 +24,8 @@ export default function FileTransfer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -39,98 +42,91 @@ export default function FileTransfer({
     if (mime.startsWith('text/') || mime.includes('pdf') || mime.includes('word')) {
       return <FileText className="text-sky-500 w-5 h-5 flex-shrink-0" />;
     }
+    if (mime === 'application/zip') return <Folder className="text-amber-400 w-5 h-5 flex-shrink-0" />;
     return <File className="text-gray-400 w-5 h-5 flex-shrink-0" />;
   };
 
-  // Process file upload by reading as Base64 and posting
+  // Dosya veya klasörü base64'e çevirip sunucuya gönder
+  const uploadToServer = async (blob: Blob, fileName: string, mimeType: string) => {
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onprogress = (e) => {
+        if (e.lengthComputable)
+          setUploadProgress(Math.round((e.loaded / e.total) * 50) + 10);
+      };
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    setUploadProgress(65);
+    const fileId = 'file_' + Math.random().toString(36).substr(2, 9);
+    const serverBase = 'https://any-desk-1.onrender.com';
+
+    const response = await fetch(`${serverBase}/api/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileId, name: fileName, size: blob.size,
+        mimeType, senderId: myId, senderName: myName, base64Data,
+      }),
+    });
+
+    setUploadProgress(90);
+    if (!response.ok) throw new Error(`Sunucu hatası: ${response.statusText}`);
+    const result = await response.json();
+    setUploadProgress(100);
+
+    const newFile: SharedFile = {
+      id: fileId, name: fileName, size: blob.size, mimeType,
+      senderId: myId, senderName: myName,
+      timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+      downloadUrl: `${serverBase}${result.downloadUrl}`,
+    };
+    onUploadSuccess(newFile);
+    setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 600);
+  };
+
+  // Tek dosya gönder
   const processFileUpload = async (file: File) => {
-    if (!peerId) {
-      setErrorMessage("Bağlantı kurulmuş aktif bir uzak masaüstü bulunmadığından dosya gönderemezsiniz!");
-      return;
-    }
+    if (!peerId) { setErrorMessage("Önce bağlantı kurun!"); return; }
     setErrorMessage(null);
     setIsUploading(true);
     setUploadProgress(10);
-
     try {
-      const reader = new FileReader();
-      
-      // Simulate progress during base64 conversion
-      reader.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percentage = Math.round((e.loaded / e.total) * 40) + 10;
-          setUploadProgress(percentage);
-        }
-      };
-
-      reader.onload = async () => {
-        try {
-          setUploadProgress(60);
-          const base64DataWithPrefix = reader.result as string;
-          // Extract purely base64 content
-          const base64Data = base64DataWithPrefix.split(',')[1];
-          
-          const fileId = 'file_' + Math.random().toString(36).substr(2, 9);
-          
-          // Post file to express server
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fileId,
-              name: file.name,
-              size: file.size,
-              mimeType: file.type || 'application/octet-stream',
-              senderId: myId,
-              senderName: myName,
-              base64Data,
-            }),
-          });
-
-          setUploadProgress(85);
-
-          if (!response.ok) {
-            throw new Error(`Dosya yükleme sunucu hatası: ${response.statusText}`);
-          }
-
-          const result = await response.json();
-          setUploadProgress(100);
-
-          const newFile: SharedFile = {
-            id: fileId,
-            name: file.name,
-            size: file.size,
-            mimeType: file.type || 'application/octet-stream',
-            senderId: myId,
-            senderName: myName,
-            timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-            downloadUrl: `/api/download/${fileId}`,
-          };
-
-          onUploadSuccess(newFile);
-          
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadProgress(0);
-          }, 600);
-
-        } catch (e: any) {
-          setErrorMessage("Dosya Transferi Hatası: " + e.message);
-          setIsUploading(false);
-        }
-      };
-
-      reader.onerror = () => {
-        setErrorMessage("Dosya okuma işlemi başarısız.");
-        setIsUploading(false);
-      };
-
-      reader.readAsDataURL(file);
-
+      await uploadToServer(file, file.name, file.type || 'application/octet-stream');
     } catch (e: any) {
-      setErrorMessage("Yükleme sırasında hata: " + e.message);
+      setErrorMessage("Hata: " + e.message);
+      setIsUploading(false);
+    }
+  };
+
+  // Klasör seçilince ZIP'e paketleyip gönder
+  const processFolderUpload = async (files: FileList) => {
+    if (!peerId) { setErrorMessage("Önce bağlantı kurun!"); return; }
+    if (files.length === 0) return;
+    setErrorMessage(null);
+    setIsUploading(true);
+    setUploadProgress(5);
+    try {
+      const zip = new JSZip();
+      // webkitRelativePath ile klasör yapısını koru
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const relativePath = (file as any).webkitRelativePath || file.name;
+        zip.file(relativePath, file);
+        setUploadProgress(Math.round((i / files.length) * 40) + 5);
+      }
+      // Klasör adını zip adı olarak kullan
+      const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
+      const folderName = firstPath.split('/')[0] || 'klasor';
+      const zipName = `${folderName}.zip`;
+
+      setUploadProgress(50);
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      await uploadToServer(zipBlob, zipName, 'application/zip');
+    } catch (e: any) {
+      setErrorMessage("Klasör ZIP hatası: " + e.message);
       setIsUploading(false);
     }
   };
@@ -145,18 +141,26 @@ export default function FileTransfer({
     setIsDragging(false);
   };
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+    // Birden fazla dosya varsa ZIP'e paketle
+    if (e.dataTransfer.files.length > 1) {
+      await processFolderUpload(e.dataTransfer.files);
+    } else {
       processFileUpload(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files && e.target.files.length > 0)
       processFileUpload(e.target.files[0]);
-    }
+  };
+
+  const handleFolderChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0)
+      processFolderUpload(e.target.files);
   };
 
   return (
@@ -192,6 +196,15 @@ export default function FileTransfer({
           disabled={!peerId}
           className="hidden"
         />
+        <input
+          type="file"
+          ref={folderInputRef}
+          onChange={handleFolderChange}
+          disabled={!peerId}
+          className="hidden"
+          {...{ webkitdirectory: '', mozdirectory: '' } as any}
+          multiple
+        />
         
         <Upload className={`w-9 h-9 mb-2 transition-transform duration-300 ${isDragging ? 'translate-y-[-4px] text-red-500 animate-bounce' : 'text-neutral-450'}`} />
         
@@ -201,7 +214,9 @@ export default function FileTransfer({
               Göndermek istediğiniz dosyayı buraya sürükleyin
             </p>
             <p className="text-[10px] text-neutral-450 mt-1">
-              ya da doğrudan <span className="text-red-500 font-medium underline underline-offset-2">seçmek için tıklayın</span>
+              ya da doğrudan <span onClick={() => fileInputRef.current?.click()} className="text-red-500 font-medium underline underline-offset-2 cursor-pointer">dosya seç</span>
+              {' '}veya{' '}
+              <span onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }} className="text-amber-500 font-medium underline underline-offset-2 cursor-pointer">klasör seç</span>
             </p>
           </div>
         ) : (
