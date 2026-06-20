@@ -601,7 +601,7 @@ export default function App() {
             <div className="lg:col-span-8 flex flex-col gap-5 lg:gap-6 min-h-[500px]">
               
               {/* Real-time remote desktop monitor frame */}
-              <div className="flex-1 flex flex-col min-h-[360px] lg:min-h-[480px]">
+              <div className="flex flex-col min-h-[200px] lg:min-h-[260px]">
                 <VirtualDesktop
                   role={role === 'none' ? 'host' : role}
                   desktopState={desktopState}
