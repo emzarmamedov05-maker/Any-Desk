@@ -102,21 +102,7 @@ export default function ChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick message shortcuts */}
-      {peerId && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {quickTemplates.map((tmpl, idx) => (
-            <button
-              key={idx}
-              onClick={() => onSendMessage(tmpl)}
-              className="text-[10px] text-neutral-450 bg-neutral-950/55 hover:bg-neutral-800 hover:text-red-400 border border-neutral-800/80 hover:border-neutral-700 px-2.5 py-1 rounded-lg transition-all truncate max-w-[200px] cursor-pointer"
-              title={tmpl}
-            >
-              {tmpl}
-            </button>
-          ))}
-        </div>
-      )}
+
 
       {/* Input controls */}
       <div className="flex gap-2">
