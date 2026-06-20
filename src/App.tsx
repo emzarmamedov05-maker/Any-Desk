@@ -66,9 +66,10 @@ export default function App() {
 
   // Web socket core state pipeline setup
   const initWebSocketConnection = (clientName: string) => {
-    // Dynamically derive WebSocket urls depending on standard run ports (3000)
+    const isElectron = navigator.userAgent.toLowerCase().includes('electron');
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    const wsHost = isElectron ? 'any-desk-1.onrender.com' : window.location.host;
+    const wsUrl = isElectron ? `wss://${wsHost}/ws` : `${wsProtocol}//${wsHost}/ws`;
 
     console.log("Connecting to AnyDesk signaler:", wsUrl);
     const ws = new WebSocket(wsUrl);

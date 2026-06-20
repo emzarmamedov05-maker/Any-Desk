@@ -2,6 +2,10 @@ appId: com.uzakmasaustu.app
 productName: Uzak Masaüstü Bağlantısı
 copyright: Copyright © 2026
 
+extraMetadata:
+  main: electron/main.js
+  type: commonjs
+
 directories:
   output: release
 
