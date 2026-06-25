@@ -1,348 +1,158 @@
 import express from "express";
 import path from "path";
+import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
-import { WebSocketServer, WebSocket } from "ws";
-import http from "http";
+import { GoogleGenAI, Type } from "@google/genai";
 
-// In-memory databases for sessions and shared files
-const app = express();
-const server = http.createServer(app);
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+dotenv.config();
 
-// Increase request size limit for base64 file transfers (up to 50MB files)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Define port (3000 is required by the infrastructure)
+const PORT = 3000;
 
-interface TempSharedFile {
-  id: string;
-  name: string;
-  size: number;
-  mimeType: string;
-  senderId: string;
-  senderName: string;
-  buffer: Buffer;
-  timestamp: string;
-}
+async function startServer() {
+  const app = express();
+  
+  // Increase payload limit for base64 camera images
+  app.use(express.json({ limit: "15mb" }));
+  app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
-const sharedFilesDb = new Map<string, TempSharedFile>();
-
-// API routes for file sharing P2P/Server
-app.post("/api/upload", (req, res) => {
-  try {
-    const { fileId, name, size, mimeType, senderId, senderName, base64Data } = req.body;
-    
-    if (!fileId || !name || !base64Data) {
-      return res.status(400).json({ error: "Eksik parametreler (Id, Name, Data gerekli)" });
-    }
-
-    // Convert base64 back to buffer
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    sharedFilesDb.set(fileId, {
-      id: fileId,
-      name,
-      size,
-      mimeType: mimeType || 'application/octet-stream',
-      senderId,
-      senderName,
-      buffer,
-      timestamp: new Date().toISOString()
-    });
-
-    res.json({ success: true, downloadUrl: `/api/download/${fileId}` });
-  } catch (error: any) {
-    console.error("Upload error:", error);
-    res.status(500).json({ error: "Dosya yüklenirken hata oluştu: " + error.message });
-  }
-});
-
-app.get("/api/download/:fileId", (req, res) => {
-  const { fileId } = req.params;
-  const file = sharedFilesDb.get(fileId);
-
-  if (!file) {
-    return res.status(404).send("Dosya bulunamadı veya süresi doldu.");
-  }
-
-  res.setHeader("Content-Type", file.mimeType);
-  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name)}"${file.name.match(/^[\x00-\x7F]*$/) ? '' : `; filename*=UTF-8''${encodeURIComponent(file.name)}`}`);
-  res.setHeader("Content-Length", file.buffer.length);
-  res.send(file.buffer);
-});
-
-// Websocket Signaling & Connection State
-interface ConnectedClient {
-  id: string; // 9-digit string "123 456 789"
-  name: string;
-  ws: WebSocket;
-  activeSessionWith: string | null; // peer ID
-}
-
-const clients = new Map<string, ConnectedClient>();
-
-// Helper to generate a unique 9-digit desktop ID (formatted as "xxx xxx xxx")
-function generateDesktopId(): string {
-  let attempts = 0;
-  while (attempts < 100) {
-    const digits = Math.floor(100000000 + Math.random() * 900000000).toString();
-    const formatted = `${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6, 9)}`;
-    if (!clients.has(formatted)) {
-      return formatted;
-    }
-    attempts++;
-  }
-  return "000 000 000";
-}
-
-const wss = new WebSocketServer({ noServer: true });
-
-// Handle WebSocket HTTP upgrades
-server.on("upgrade", (request, socket, head) => {
-  const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
-  if (pathname === "/ws") {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit("connection", ws, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
-
-wss.on("connection", (ws: WebSocket) => {
-  let clientCabinet: ConnectedClient | null = null;
-
-  ws.on("message", (rawMessageString: string) => {
+  // API Route: Translate image captured from camera
+  app.post("/api/translate-camera", async (req, res) => {
     try {
-      const payload = JSON.parse(rawMessageString);
-      const { type, data } = payload;
-
-      switch (type) {
-        case "client:register": {
-          const { clientName } = data;
-          const assignedId = generateDesktopId();
-          
-          clientCabinet = {
-            id: assignedId,
-            name: clientName || "Anonim Cihaz",
-            ws,
-            activeSessionWith: null
-          };
-          
-          clients.set(assignedId, clientCabinet);
-          
-          ws.send(JSON.stringify({
-            type: "client:id",
-            data: { id: assignedId, name: clientCabinet.name }
-          }));
-
-          console.log(`Registered client: ${clientCabinet.name} (${assignedId})`);
-          break;
-        }
-
-        case "session:connect": {
-          // A controller is requesting connection to a host
-          if (!clientCabinet) return;
-          const { targetId } = data;
-          // normalize: remove spaces for lookup
-          const normalizedTarget = targetId.replace(/\s/g, '');
-          let hostClient = clients.get(targetId);
-          if (!hostClient) {
-            // try matching without spaces
-            for (const [key, val] of clients.entries()) {
-              if (key.replace(/\s/g, '') === normalizedTarget) {
-                hostClient = val;
-                break;
-              }
-            }
-          }
-          console.log(`Connection request: ${clientCabinet.id} -> ${targetId}`);
-          if (!hostClient) {
-            ws.send(JSON.stringify({
-              type: "session:error",
-              data: { message: "Girdiğiniz bağlantı koduna sahip aktif bir cihaz bulunamadı!" }
-            }));
-            return;
-          }
-
-          if (hostClient.activeSessionWith) {
-            ws.send(JSON.stringify({
-              type: "session:error",
-              data: { message: "Bu cihaz şu anda başka bir aktif uzak oturumda." }
-            }));
-            return;
-          }
-
-          // Relay connection proposal to the target host client
-          hostClient.ws.send(JSON.stringify({
-            type: "session:request",
-            data: {
-              controllerId: clientCabinet.id,
-              controllerName: clientCabinet.name
-            }
-          }));
-          break;
-        }
-
-        case "session:accept": {
-          // Host accepted the connection proposal
-          if (!clientCabinet) return;
-          const { controllerId } = data;
-          const controllerClient = clients.get(controllerId);
-
-          if (!controllerClient) {
-            ws.send(JSON.stringify({
-              type: "session:error",
-              data: { message: "Uzak istemci bağlantıyı kuramadan çevrimdışı oldu." }
-            }));
-            return;
-          }
-
-          // Link both clients together
-          clientCabinet.activeSessionWith = controllerId;
-          controllerClient.activeSessionWith = clientCabinet.id;
-
-          console.log(`Session established: ${controllerId} <--> ${clientCabinet.id}`);
-
-          // Notify the controller that they are in!
-          controllerClient.ws.send(JSON.stringify({
-            type: "session:established",
-            data: {
-              peerId: clientCabinet.id,
-              peerName: clientCabinet.name,
-              role: "controller"
-            }
-          }));
-
-          // Notify the host too
-          ws.send(JSON.stringify({
-            type: "session:established",
-            data: {
-              peerId: controllerClient.id,
-              peerName: controllerClient.name,
-              role: "host"
-            }
-          }));
-          break;
-        }
-
-        case "session:reject": {
-          // Host rejected
-          if (!clientCabinet) return;
-          const { controllerId } = data;
-          const controllerClient = clients.get(controllerId);
-          
-          if (controllerClient) {
-            controllerClient.ws.send(JSON.stringify({
-              type: "session:rejected",
-              data: { message: "Bağlantı isteğiniz uzak cihaz tarafından reddedildi." }
-            }));
-          }
-          break;
-        }
-
-        case "session:terminate": {
-          // Either client terminated the active session
-          if (!clientCabinet || !clientCabinet.activeSessionWith) return;
-          const peerId = clientCabinet.activeSessionWith;
-          const peerClient = clients.get(peerId);
-
-          // Clear associations
-          clientCabinet.activeSessionWith = null;
-          if (peerClient) {
-            peerClient.activeSessionWith = null;
-            // Inform peer
-            peerClient.ws.send(JSON.stringify({
-              type: "session:closed",
-              data: { message: "Uzak masaüstü bağlantısı karşı tarafça sonlandırıldı." }
-            }));
-          }
-
-          // Inform self
-          ws.send(JSON.stringify({
-            type: "session:closed",
-            data: { message: "Oturum sonlandırıldı." }
-          }));
-
-          console.log(`Session terminated between: ${clientCabinet.id} and ${peerId}`);
-          break;
-        }
-
-        // Real-Time signaling payloads to relay to peer in active session
-        case "desktop:update":
-        case "mouse:move":
-        case "mouse:click":
-        case "desktop:action":
-        case "canvas:draw":
-        case "editor:change":
-        case "chat:msg":
-        case "file:meta": {
-          if (!clientCabinet || !clientCabinet.activeSessionWith) return;
-          const peerId = clientCabinet.activeSessionWith;
-          const peerClient = clients.get(peerId);
-          
-          if (peerClient) {
-            peerClient.ws.send(JSON.stringify({
-              type,
-              data
-            }));
-          }
-          break;
-        }
-
-        case "heartbeat": {
-          ws.send(JSON.stringify({ type: "heartbeat:pong" }));
-          break;
-        }
-
-        default:
-          console.warn(`Unknown WebSocket message type: ${type}`);
+      const { image, targetLanguage } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "Görüntü verisi eksik." });
       }
-    } catch (e) {
-      console.error("WS Message processing error:", e);
+
+      // Check for Gemini API key
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
+        console.warn("GEMINI_API_KEY is not set or placeholder. Using high-quality mock translation engine.");
+        
+        // Let's create a realistic fallback translation based on typical language patterns
+        // simulating a very responsive and robust experience.
+        setTimeout(() => {
+          return res.json({
+            detectedLanguage: "İngilizce (Tahminî - Çevrimdışı Mod)",
+            originalText: "Hello, welcome to our language learning application! Practice makes perfect.",
+            translatedText: targetLanguage === "ka" 
+              ? "გამარჯობა, კეთილი იყოს თქვენი მობრძანება ჩვენს ენის შესწავლის პროგრამაში! პრაქტიკა სრულყოფილებას ხდის."
+              : targetLanguage === "tr"
+              ? "Merhaba, dil öğrenme uygulamamıza hoş geldiniz! Pratik yapmak mükemmelleştirir."
+              : "Hello, welcome to our language learning application! Practice makes perfect.",
+            explanation: "Not: API Anahtarı eksik olduğu için sistem 'Simüle Edilmiş Çeviri' modunda çalışıyor. Gerçek bir kameradan metin okumak için lütfen AI Studio Secrets panelinden geçerli bir GEMINI_API_KEY tanımlayın.",
+            isDemo: true
+          });
+        }, 1500);
+        return;
+      }
+
+      // Parse base64 image data
+      // format: data:image/jpeg;base64,/9j/4AAQSkZJRg...
+      const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return res.status(400).json({ error: "Geçersiz görüntü formatı. Base64 bekleniyor." });
+      }
+
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+
+      // Initialize Gemini client lazily to avoid startup crashes if key is invalid
+      const ai = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+
+      console.log(`Analyzing image with mimeType: ${mimeType} for targetLanguage: ${targetLanguage}`);
+
+      // Prompt instructs Gemini to read the text in the image, detect the language, translate it,
+      // and provide Turkish grammar and vocabulary explanations.
+      const prompt = `Analyze this image containing written text. Perform the following tasks:
+1. Detect the language of the written text in the image (it could be English, Georgian, Turkish, or another language).
+2. Transcribe the original text exactly as written in the image.
+3. Translate this original text into the requested target language (target language short-code is: "${targetLanguage}", which represents "en" for English, "ka" for Georgian, and "tr" for Turkish).
+4. Provide a brief, helpful grammatical or vocabulary explanation of the text in Turkish, so the user can learn from it.
+
+You must return the response as a JSON object matching this schema:
+{
+  "detectedLanguage": "The name of the detected language (e.g. 'İngilizce', 'Gürcüce', 'Türkçe')",
+  "originalText": "The transcribed text from the image",
+  "translatedText": "The translated text in the target language",
+  "explanation": "A short educational explanation in Turkish about vocabulary, pronunciation, or grammar notes found in the text"
+}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data,
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              detectedLanguage: { type: Type.STRING },
+              originalText: { type: Type.STRING },
+              translatedText: { type: Type.STRING },
+              explanation: { type: Type.STRING },
+            },
+            required: ["detectedLanguage", "originalText", "translatedText", "explanation"],
+          },
+        },
+      });
+
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error("Gemini API returned an empty response.");
+      }
+
+      const result = JSON.parse(responseText.trim());
+      return res.json(result);
+
+    } catch (error: any) {
+      console.error("Gemini camera translation error:", error);
+      return res.status(500).json({ 
+        error: "Yapay Zeka ile çeviri gerçekleştirilirken bir hata oluştu.",
+        details: error.message 
+      });
     }
   });
 
-  ws.on("close", () => {
-    if (clientCabinet) {
-      console.log(`Client disconnected: ${clientCabinet.name} (${clientCabinet.id})`);
-      const peerId = clientCabinet.activeSessionWith;
-      if (peerId) {
-        const peerClient = clients.get(peerId);
-        if (peerClient) {
-          peerClient.activeSessionWith = null;
-          peerClient.ws.send(JSON.stringify({
-            type: "session:closed",
-            data: { message: "Uzak terminal bağlantısı beklenmedik şekilde koptu (Cihaz Kapandı)." }
-          }));
-        }
-      }
-      clients.delete(clientCabinet.id);
-    }
-  });
-});
-
-// Serve frontend assets
-if (process.env.NODE_ENV !== "production") {
-  createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  }).then((vite) => {
-    app.use(vite.middlewares);
-    
-    // Fallback client route
-    app.use("*", (req, res, next) => {
-      vite.middlewares(req, res, next);
+  // Serve static files / Vite middleware
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Starting server in DEVELOPMENT mode with Vite middleware...");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
     });
-  });
-} else {
-  const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
+    app.use(vite.middlewares);
+  } else {
+    console.log("Starting server in PRODUCTION mode...");
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
-// Start HTTP server on port 3000
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`AnyDesk simulator listening on http://localhost:${PORT}`);
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
 });

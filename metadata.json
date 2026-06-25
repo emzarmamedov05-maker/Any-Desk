@@ -1,11 +1,6 @@
 {
-  "name": "Uzak Masaüstü ve Dosya Transferi",
-  "description": "AnyDesk benzeri, gerçek zamanlı uzak masaüstü kontrolü, anlık mesajlaşma ve eşler arası (P2P) dosya transferi uygulaması.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "name": "Multi-Language Learner",
+  "description": "An interactive, gamified learning application for English, Georgian, and Turkish with AI camera translation, progress tracking, and voice exercises.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
